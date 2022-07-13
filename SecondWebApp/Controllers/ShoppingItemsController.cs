@@ -15,7 +15,6 @@ namespace FirstWebApp.Controllers
         public ShoppingItemsController(ShoppingContext context)
         {
             _context = context;
-
             _context.Database.EnsureCreated();
         }
 
@@ -121,7 +120,7 @@ namespace FirstWebApp.Controllers
 
             return NoContent();
         }
-        
+        //
         // [HttpPatch("{id:int}")]
         // public ShoppingItem UpdateItem(int id, JsonPatchDocument<ShoppingItem> updatedValues)
         // {
