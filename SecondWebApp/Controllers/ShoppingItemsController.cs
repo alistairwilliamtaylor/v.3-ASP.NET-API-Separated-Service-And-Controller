@@ -1,8 +1,7 @@
 using FirstWebApp.Models;
-using Microsoft.AspNetCore.JsonPatch;
+using FirstWebApp.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 
 namespace FirstWebApp.Controllers
 {
@@ -10,25 +9,25 @@ namespace FirstWebApp.Controllers
     [ApiController]
     public class ShoppingItemsController : ControllerBase
     {
-        private readonly ShoppingContext _context;
+        private readonly ItemService _service;
 
         public ShoppingItemsController(ShoppingContext context)
         {
-            _context = context;
-            _context.Database.EnsureCreated();
+            
+            _service = new ItemService(context);
         }
 
         [HttpGet]
         public async Task<ActionResult> GetAllItems()
         {
-            var items = await _context.Items.ToArrayAsync();
+            var items = await _service.GetItems();
             return Ok(items);
         }
 
         [HttpGet("{id:int}")]
         public async Task<ActionResult> GetItem(int id)
         {
-            var item = await _context.Items.FindAsync(id);
+            var item = await _service.GetItem(id);
             if (item == null)
             {
                 return NotFound();
@@ -44,10 +43,16 @@ namespace FirstWebApp.Controllers
             {
                 return BadRequest();
             }
-
-            _context.Items.Add(newItem);
-            await _context.SaveChangesAsync();
-
+            
+            try
+            {
+                await _service.CreateItem(newItem);
+            }
+            catch (DbUpdateConcurrencyException e)
+            {
+                return Conflict(e);
+            }
+            
             return CreatedAtAction(
                 "GetItem",
                 new {id = newItem.Id},
@@ -55,43 +60,13 @@ namespace FirstWebApp.Controllers
         }
 
         [HttpDelete("{id:int}")]
-        public async Task<ActionResult> DeleteItem(int id)
+        public async Task<ActionResult> Delete(int id)
         {
-            var item = await _context.Items.FindAsync(id);
-
-            if (item == null) return NotFound();
-
-            _context.Items.Remove(item);
-            await _context.SaveChangesAsync();
-
-            return Ok(item);
+            var deletedItem = await _service.DeleteItem(id);
+            if (deletedItem == null) return NotFound();
+            return Ok(deletedItem);
         }
-
-        [HttpPost]
-        [Route("delete-items")]
-        public async Task<ActionResult> DeleteItems([FromBody]Batch batch)
-        {
-            var itemsToDelete = new List<ShoppingItem>();
-
-            foreach (var id in batch.Ids)
-            {
-                var item = await _context.Items.FindAsync(id);
-                
-                if (item == null)
-                {
-                    return NotFound();
-                }
-                
-                itemsToDelete.Add(item);
-            }
-            
-            _context.Items.RemoveRange(itemsToDelete);
-            await _context.SaveChangesAsync();
-
-            return Ok(itemsToDelete);
-        }
-
-
+        
         [HttpPut("{id:int}")]
         public async Task<ActionResult> PutItem(int id, [FromBody]ShoppingItem item)
         {
@@ -99,27 +74,51 @@ namespace FirstWebApp.Controllers
             {
                 return BadRequest();
             }
-
-            _context.Entry(item).State = EntityState.Modified;
-
+            
             try
             {
-                await _context.SaveChangesAsync();
+                await _service.UpdateItem(item);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (DbUpdateConcurrencyException e)
             {
-                if (!_context.Items.Any(i => i.Id == id))
+                var itemToUpdate = await _service.GetItem(item.Id);
+                if (itemToUpdate == null)
                 {
                     return NotFound();
                 }
                 else
                 {
-                    throw;
+                    return Conflict(e);
                 }
             }
 
             return NoContent();
         }
+
+        // [HttpPost]
+        // [Route("delete-items")]
+        // public async Task<ActionResult> DeleteItems([FromBody]Batch batch)
+        // {
+        //     var itemsToDelete = new List<ShoppingItem>();
+        //
+        //     foreach (var id in batch.Ids)
+        //     {
+        //         var item = await _context.Items.FindAsync(id);
+        //         
+        //         if (item == null)
+        //         {
+        //             return NotFound();
+        //         }
+        //         
+        //         itemsToDelete.Add(item);
+        //     }
+        //     
+        //     _context.Items.RemoveRange(itemsToDelete);
+        //     await _context.SaveChangesAsync();
+        //
+        //     return Ok(itemsToDelete);
+        // }
+        
         //
         // [HttpPatch("{id:int}")]
         // public ShoppingItem UpdateItem(int id, JsonPatchDocument<ShoppingItem> updatedValues)

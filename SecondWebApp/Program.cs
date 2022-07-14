@@ -1,5 +1,6 @@
 using FirstWebApp;
 using FirstWebApp.Models;
+using FirstWebApp.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -9,6 +10,7 @@ builder.Services.AddDbContext<ShoppingContext>(options =>
     {
         options.UseInMemoryDatabase("Shopping Lists");
     })
+    .AddScoped<ItemService>()
     .AddControllers()
     // .ConfigureApiBehaviorOptions(options =>
     // {
