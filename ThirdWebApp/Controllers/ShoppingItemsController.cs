@@ -11,23 +11,22 @@ namespace FirstWebApp.Controllers
     {
         private readonly ItemService _service;
 
-        public ShoppingItemsController(ShoppingContext context)
+        public ShoppingItemsController(ItemService service)
         {
-            
-            _service = new ItemService(context);
+            _service = service;
         }
 
         [HttpGet]
-        public async Task<ActionResult> GetAllItems()
+        public async Task<ActionResult<IEnumerable<ShoppingItemDto>>> GetAllItems()
         {
             var items = await _service.GetItems();
             return Ok(items);
         }
 
         [HttpGet("{id:int}")]
-        public async Task<ActionResult> GetItem(int id)
+        public async Task<ActionResult<ShoppingItemDto>> GetItem(int id)
         {
-            var item = await _service.GetItem(id);
+            var item = await _service.GetItemDto(id);
             if (item == null)
             {
                 return NotFound();
@@ -37,16 +36,17 @@ namespace FirstWebApp.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> PostItem([FromBody] ShoppingItem newItem)
+        public async Task<ActionResult> PostItem([FromBody] CreateShoppingItemRequest newItemRequest)
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest();
             }
-            
+
+            int newItemId;
             try
             {
-                await _service.CreateItem(newItem);
+                newItemId = await _service.CreateItem(newItemRequest);
             }
             catch (DbUpdateConcurrencyException e)
             {
@@ -55,12 +55,12 @@ namespace FirstWebApp.Controllers
             
             return CreatedAtAction(
                 "GetItem",
-                new {id = newItem.Id},
-                newItem);
+                new {id = newItemId},
+                newItemRequest);
         }
 
         [HttpDelete("{id:int}")]
-        public async Task<ActionResult> Delete(int id)
+        public async Task<ActionResult<ShoppingItem?>> Delete(int id)
         {
             var deletedItem = await _service.DeleteItem(id);
             if (deletedItem == null) return NotFound();
@@ -81,7 +81,7 @@ namespace FirstWebApp.Controllers
             }
             catch (DbUpdateConcurrencyException e)
             {
-                var itemToUpdate = await _service.GetItem(item.Id);
+                var itemToUpdate = await _service.GetItemDto(item.Id);
                 if (itemToUpdate == null)
                 {
                     return NotFound();
@@ -123,7 +123,7 @@ namespace FirstWebApp.Controllers
         // [HttpPatch("{id:int}")]
         // public ShoppingItem UpdateItem(int id, JsonPatchDocument<ShoppingItem> updatedValues)
         // {
-        //     var itemToUpdate = _itemRepo.GetItem(id);
+        //     var itemToUpdate = _itemRepo.GetItemDto(id);
         //     updatedValues.ApplyTo(itemToUpdate);
         //     return _itemRepo.Replace(itemToUpdate);
         // }
