@@ -11,7 +11,7 @@ internal static class ShoppingItemMapper
             Id = item.Id,
             ItemName = item.ItemName,
             IsPurchased = item.IsPurchased,
-            ShoppingListId = item.Id,
+            ShoppingListId = item.ShoppingListId,
             ShoppingListName = item.ShoppingList.Name,
         };
     }
@@ -21,7 +21,24 @@ internal static class ShoppingItemMapper
         return new ShoppingItem
         {
             ItemName = request.ItemName,
-            ShoppingListId = request.ShoppingListId,
+            ShoppingListId = request.ShoppingListId
         };
+    }
+
+    public static ShoppingItemUpdate ToUpdateable(this ShoppingItem item)
+    {
+        return new ShoppingItemUpdate
+        {
+            ItemName = item.ItemName,
+            IsPurchased = item.IsPurchased,
+            ShoppingListId = item.ShoppingListId
+        };
+    }
+
+    public static void MergeWithUpdatedProperties(this ShoppingItem item, ShoppingItemUpdate updated)
+    {
+        item.ItemName = updated.ItemName;
+        item.IsPurchased = updated.IsPurchased;
+        item.ShoppingListId = updated.ShoppingListId;
     }
 }

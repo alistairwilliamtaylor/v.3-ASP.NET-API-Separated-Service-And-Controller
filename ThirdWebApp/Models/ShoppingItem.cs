@@ -9,5 +9,5 @@ public class ShoppingItem
     public string ItemName { get; set; } = String.Empty;
     public bool IsPurchased { get; set; }
     public int ShoppingListId { get; set; }
-    public virtual ShoppingList? ShoppingList { get; set; }
+    public ShoppingList ShoppingList { get; set; }
 }
