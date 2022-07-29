@@ -39,7 +39,7 @@ namespace FirstWebApp.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult> PostItem([FromBody] CreateShoppingItemRequest newItemRequest)
+        public async Task<ActionResult> PostItem([FromBody] ShoppingItemRequestBody newItemRequest)
         {
             // this could well be superfluous (I think I remember that being mentioned, we could turn off automated in Services in Program.cs)
             if (!ModelState.IsValid)
@@ -50,7 +50,7 @@ namespace FirstWebApp.Controllers
             ShoppingItem createdItem;
             try
             {
-                createdItem = await _service.CreateItem(newItemRequest.ToModel());
+                createdItem = await _service.AddItem(newItemRequest.ToModel());
             }
             catch (ForeignKeyDoesNotExistException e)
             {
@@ -77,7 +77,7 @@ namespace FirstWebApp.Controllers
         
         
         [HttpPatch("{id:int}")]
-        public async Task<ActionResult<ShoppingItemDto>> PatchItem(int id, JsonPatchDocument<ShoppingItemUpdate> patch)
+        public async Task<ActionResult<ShoppingItemDto>> PatchItem(int id, JsonPatchDocument<ShoppingItemRequestBody> patch)
         {
             if (!ModelState.IsValid) return BadRequest();
             try
@@ -93,11 +93,11 @@ namespace FirstWebApp.Controllers
         }
         
         [HttpPut("{id:int}")]
-        public async Task<ActionResult> PutItem(int id, [FromBody]ShoppingItemUpdate update)
+        public async Task<ActionResult> PutItem(int id, [FromBody]ShoppingItemRequestBody requestBody)
         {
             try
             {
-                await _service.ReplaceItemProperties(id, update);
+                await _service.ReplaceItemProperties(id, requestBody);
             }
             catch (ForeignKeyDoesNotExistException e)
             {
@@ -127,14 +127,14 @@ namespace FirstWebApp.Controllers
         //
         //     foreach (var id in batch.Ids)
         //     {
-        //         var update = await _context.Items.FindAsync(id);
+        //         var requestBody = await _context.Items.FindAsync(id);
         //         
-        //         if (update == null)
+        //         if (requestBody == null)
         //         {
         //             return NotFound();
         //         }
         //         
-        //         itemsToDelete.Add(update);
+        //         itemsToDelete.Add(requestBody);
         //     }
         //     
         //     _context.Items.RemoveRange(itemsToDelete);

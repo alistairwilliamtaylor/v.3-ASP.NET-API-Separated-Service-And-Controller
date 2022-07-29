@@ -16,18 +16,19 @@ internal static class ShoppingItemMapper
         };
     }
 
-    public static ShoppingItem ToModel(this CreateShoppingItemRequest request)
+    public static ShoppingItem ToModel(this ShoppingItemRequestBody request)
     {
         return new ShoppingItem
         {
             ItemName = request.ItemName,
+            IsPurchased = request.IsPurchased,
             ShoppingListId = request.ShoppingListId
         };
     }
 
-    public static ShoppingItemUpdate ToUpdateable(this ShoppingItem item)
+    public static ShoppingItemRequestBody ToUpdateable(this ShoppingItem item)
     {
-        return new ShoppingItemUpdate
+        return new ShoppingItemRequestBody
         {
             ItemName = item.ItemName,
             IsPurchased = item.IsPurchased,
@@ -35,7 +36,7 @@ internal static class ShoppingItemMapper
         };
     }
 
-    public static void MergeWithUpdatedProperties(this ShoppingItem item, ShoppingItemUpdate updated)
+    public static void MergeWithUpdatedProperties(this ShoppingItem item, ShoppingItemRequestBody updated)
     {
         item.ItemName = updated.ItemName;
         item.IsPurchased = updated.IsPurchased;

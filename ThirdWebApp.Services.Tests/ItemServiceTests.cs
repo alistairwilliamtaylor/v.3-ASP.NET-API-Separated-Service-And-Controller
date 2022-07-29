@@ -1,59 +1,196 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using FirstWebApp.Exceptions;
 using FirstWebApp.Models;
 using FirstWebApp.Services;
+using Microsoft.AspNetCore.JsonPatch;
+using Microsoft.AspNetCore.JsonPatch.Converters;
+using Microsoft.AspNetCore.JsonPatch.Operations;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
+using Newtonsoft.Json.Serialization;
 using Xunit;
 
 namespace ThirdWebApp.Services.Tests;
 
-public class ItemServiceTests
+public class ItemServiceTests : IDisposable
 {
-    private readonly DbContextOptions<ShoppingContext> _contextOptions;
+    private readonly ShoppingContext _context;
+    private readonly ItemService _service;
 
-    private readonly ShoppingList _fruitList = new() {Id = 1, Name = "Fruit"};
-    
-    private readonly ShoppingItem _orangesItem = new ()
-    {
-        Id = 1,
-        ItemName = "Oranges",
-        IsPurchased = false,
-        ShoppingListId = 1
-    };
-    
     public ItemServiceTests()
     {
-        _contextOptions = new DbContextOptionsBuilder<ShoppingContext>()
-            .UseInMemoryDatabase("ShoppingItemControllerTest")
-            // .ConfigureWarnings(b => b.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+        var contextOptions = new DbContextOptionsBuilder<ShoppingContext>()
+            .UseInMemoryDatabase("Shopping Item Service Tests")
             .Options;
 
-        using var context = new ShoppingContext(_contextOptions);
+        _context = new ShoppingContext(contextOptions);
+        _context.Database.EnsureDeleted();
+        _context.Database.EnsureCreated();
 
-        context.Database.EnsureDeleted();
-        context.Database.EnsureCreated();
-
-        context.AddRange(_fruitList, _orangesItem);
-
-        context.SaveChanges();
+        _service = new ItemService(_context);
     }
-    
-    ShoppingContext CreateContext() => new ShoppingContext(_contextOptions, (context, modelBuilder) =>
-    {
-        modelBuilder.Entity<UrlResource>()
-            .ToInMemoryQuery(() => context.Blogs.Select(b => new UrlResource { Url = b.Url }));
-    });
-    
+
+    public void Dispose() => _context.Dispose();
 
     [Fact]
-    public async void Gets_Item_By_Id()
+    public async void Gets_Item_With_Name_Of_Shopping_List_To_Which_It_Belongs()
     {
-        await using var context = CreateContext();
-        var service = new ItemService(context);
+        // Act
+        var retrievedItem = await _service.GetItem(1);
 
-        var retrievedItem = await service.GetItem(1);
-
-        Assert.Equal("Oranges", retrievedItem.ItemName);
-        Assert.Equal("Fruit", retrievedItem.ShoppingList.Name);
+        // Assert
+        Assert.Equal("Oranges", retrievedItem?.ItemName);
+        Assert.Equal("Fruit", retrievedItem?.ShoppingList.Name);
     }
-    
+
+    [Fact]
+    public async void Gets_All_Items_With_Names_Of_Respective_Shopping_Lists()
+    {
+        // Arrange
+        var expectedItemNames = new[] {"Oranges", "Lemons", "Carrots", "Potatoes"};
+        var expectedShoppingListNames = new[] {"Fruit", "Fruit", "Vegetables", "Vegetables"};
+
+        // Act
+        var retrievedItems = await _service.GetItems();
+        var itemNames = retrievedItems.Select(item => item.ItemName);
+        var shoppingListNames = retrievedItems.Select(item => item.ShoppingList.Name);
+
+        // Assert
+        Assert.Equal(expectedItemNames, itemNames);
+        Assert.Equal(expectedShoppingListNames, shoppingListNames);
+    }
+
+    [Fact]
+    public async void Adds_New_Item_To_Existent_Shopping_List()
+    {
+        // Arrange
+        var itemToAdd = new ShoppingItem
+        {
+            Id = 0,
+            ItemName = "Mangoes",
+            IsPurchased = false,
+            ShoppingListId = 1,
+            ShoppingList = null
+        };
+
+        // Act
+        var addedItem = await _service.AddItem(itemToAdd);
+
+        // Assert
+        Assert.Equal(5, addedItem.Id);
+        Assert.Equal("Mangoes", addedItem.ItemName);
+        Assert.Equal("Fruit", addedItem.ShoppingList.Name);
+    }
+
+    [Fact]
+    public async void Cant_Add_Item_To_Shopping_List_Which_Doesnt_Exist()
+    {
+        // Arrange
+        var itemBelongingToNonExistentShoppingList3 = new ShoppingItem
+        {
+            Id = 0,
+            ItemName = "Walnuts",
+            IsPurchased = false,
+            ShoppingListId = 150,
+        };
+
+        // Act
+        var addToNonExistentList = async () => await _service.AddItem(itemBelongingToNonExistentShoppingList3);
+
+        // Assert
+        await Assert.ThrowsAsync<ForeignKeyDoesNotExistException>(addToNonExistentList);
+    }
+
+    [Fact]
+    public async void Delete_Item_Returns_The_Item_That_Has_Been_Deleted()
+    {
+        // Act
+        var deletedItem = await _service.DeleteItem(1);
+        
+        // Assert
+        Assert.Equal(1, deletedItem?.Id);
+        Assert.Equal("Oranges", deletedItem?.ItemName);
+        Assert.Equal(false, deletedItem?.IsPurchased);
+        Assert.Equal(1, deletedItem?.ShoppingListId);
+        Assert.Equal("Fruit", deletedItem?.ShoppingList.Name);
+    }
+
+    [Fact]
+    public async void Delete_Item_Removes_The_Item_From_The_Database()
+    {
+        // Act
+        await _service.DeleteItem(1);
+        
+        // Assert
+        var itemAfterDeletion = await _service.GetItem(1);
+        Assert.Null(itemAfterDeletion);
+    }
+
+    [Fact]
+    public async void Replaces_Item_Properties_With_Specified_Updated_Values()
+    {
+        // Arrange
+        var expectedUpdatedValues = new ShoppingItemRequestBody
+        {
+            ItemName = "Pumpkin",
+            IsPurchased = false,
+            ShoppingListId = 2
+        };
+
+        // Act
+        await _service.ReplaceItemProperties(1, expectedUpdatedValues);
+
+        // Assert
+        var updatedItem = await _service.GetItem(1);
+        Assert.Equal(expectedUpdatedValues.ItemName, updatedItem?.ItemName);
+        Assert.Equal(expectedUpdatedValues.IsPurchased, updatedItem?.IsPurchased);
+        Assert.Equal(expectedUpdatedValues.ShoppingListId, updatedItem?.ShoppingListId);
+        Assert.Equal("Vegetables", updatedItem?.ShoppingList.Name);
+    }
+
+    [Fact]
+    public async void Cant_Assign_To_Shopping_List_Which_Doesnt_Exist_When_Updating()
+    {
+        // Arrange
+        var invalidUpdatedValues = new ShoppingItemRequestBody
+        {
+            ItemName = "Mangoes",
+            IsPurchased = false,
+            ShoppingListId = 150
+        };
+        
+        // Act
+        var updateToBelongToNonExistentList = async () => await _service.ReplaceItemProperties(1, invalidUpdatedValues);
+
+        // Assert
+        await Assert.ThrowsAsync<ForeignKeyDoesNotExistException>(updateToBelongToNonExistentList);
+    }
+
+    [Fact]
+    public async void Updates_Item_Name_By_Applying_Patch_Document()
+    {
+        // Arrange
+        var changeNameToKumquatOperation = new Operation<ShoppingItemRequestBody>()
+        {
+            path = "/ItemName",
+            op = "add",
+            value = "Kumquat"
+        };
+        var jsonPatchToChangeNameToKumquat = new JsonPatchDocument<ShoppingItemRequestBody>(
+            new List<Operation<ShoppingItemRequestBody>>() {changeNameToKumquatOperation},
+            new DefaultContractResolver()
+        );
+
+        // Act
+        var patchedItem = await _service.PatchItemProperties(1, jsonPatchToChangeNameToKumquat);
+
+        // Assert
+        Assert.Equal("Kumquat", patchedItem?.ItemName);
+        Assert.Equal("Fruit", patchedItem?.ShoppingList.Name);
+    }
+
+
+
+
 }

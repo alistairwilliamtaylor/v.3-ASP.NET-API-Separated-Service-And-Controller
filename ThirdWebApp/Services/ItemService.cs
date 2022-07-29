@@ -23,24 +23,20 @@ public class ItemService
             .ToArrayAsync();
     }
 
-    public Task<ShoppingItem?> GetItem(int id)
+    public Task<ShoppingItem?> GetItem(int id) 
     {
         return _context.Items
             .Include(item => item.ShoppingList)
             .SingleOrDefaultAsync(item => item.Id == id);
     }
 
-    public async Task<ShoppingItem> CreateItem(ShoppingItem newItem)
+    public async Task<ShoppingItem> AddItem(ShoppingItem newItem)
     {
-        // at this point newItem.Id = 0 (default setting) and newItem.ShoppingList = null (although newItem.ShoppingListId has been provided)
         await ValidateForeignKey(newItem);
         _context.Items.Add(newItem);
         await _context.SaveChangesAsync();
-        // by this point there is a newItem.Id but still newItem.ShoppingList = null
         var createdItemWithNavigationProperty = await GetItem(newItem.Id);
         return createdItemWithNavigationProperty!;
-        // ^^ we return the item that we got from the database, which now has been joined to provide newItem.ShoppingList
-        // because of include statement in GetItem() method
     }
 
     public async Task<ShoppingItem?> DeleteItem(int id)
@@ -52,7 +48,7 @@ public class ItemService
         return item;
     }
 
-    public async Task ReplaceItemProperties(int id, ShoppingItemUpdate updatedFields)
+    public async Task ReplaceItemProperties(int id, ShoppingItemRequestBody updatedFields)
     {
         var itemModel = await GetItem(id);
         // get the patch shopping ListId and if it doesnt exist throw an exception
@@ -62,7 +58,7 @@ public class ItemService
         await _context.SaveChangesAsync();
     }
     
-    public async Task<ShoppingItem?> PatchItemProperties(int id, JsonPatchDocument<ShoppingItemUpdate> patch)
+    public async Task<ShoppingItem?> PatchItemProperties(int id, JsonPatchDocument<ShoppingItemRequestBody> patch)
     {
         var itemModel = await GetItem(id);
         if (itemModel == null) return null;
