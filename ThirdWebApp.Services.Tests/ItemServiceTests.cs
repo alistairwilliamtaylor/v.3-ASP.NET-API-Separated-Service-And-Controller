@@ -5,7 +5,6 @@ using FirstWebApp.Exceptions;
 using FirstWebApp.Models;
 using FirstWebApp.Services;
 using Microsoft.AspNetCore.JsonPatch;
-using Microsoft.AspNetCore.JsonPatch.Converters;
 using Microsoft.AspNetCore.JsonPatch.Operations;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Serialization;
@@ -32,6 +31,14 @@ public class ItemServiceTests : IDisposable
     }
 
     public void Dispose() => _context.Dispose();
+
+    public JsonPatchDocument<ShoppingItemRequestBody> CreateJsonPatchDocument(List<Operation<ShoppingItemRequestBody>> operations)
+    {
+        return new JsonPatchDocument<ShoppingItemRequestBody>(
+            operations,
+            new DefaultContractResolver()
+        );
+    }
 
     [Fact]
     public async void Gets_Item_With_Name_Of_Shopping_List_To_Which_It_Belongs()
@@ -171,16 +178,15 @@ public class ItemServiceTests : IDisposable
     public async void Updates_Item_Name_By_Applying_Patch_Document()
     {
         // Arrange
-        var changeNameToKumquatOperation = new Operation<ShoppingItemRequestBody>()
+        var changeNameToKumquatOperations = new List<Operation<ShoppingItemRequestBody>>()
         {
-            path = "/ItemName",
-            op = "add",
-            value = "Kumquat"
+            new () {
+                path = "/ItemName",
+                op = "add",
+                value = "Kumquat"
+            }   
         };
-        var jsonPatchToChangeNameToKumquat = new JsonPatchDocument<ShoppingItemRequestBody>(
-            new List<Operation<ShoppingItemRequestBody>>() {changeNameToKumquatOperation},
-            new DefaultContractResolver()
-        );
+        var jsonPatchToChangeNameToKumquat = CreateJsonPatchDocument(changeNameToKumquatOperations);
 
         // Act
         var patchedItem = await _service.PatchItemProperties(1, jsonPatchToChangeNameToKumquat);
@@ -189,8 +195,27 @@ public class ItemServiceTests : IDisposable
         Assert.Equal("Kumquat", patchedItem?.ItemName);
         Assert.Equal("Fruit", patchedItem?.ShoppingList.Name);
     }
+    
+    [Fact]
+    public async void Cant_Patch_Item_To_Belong_To_Shopping_List_Which_Doesnt_Exist()
+    {
+        // Arrange
+        var operationsToAssignItemToNonExistentShoppingList4 = new List<Operation<ShoppingItemRequestBody>>()
+        {
+            new () {
+                path = "/ShoppingListId",
+                op = "add",
+                value = 4
+            }   
+        };
+        var jasonPatchToAssignItemToNonExistentList4 = CreateJsonPatchDocument(operationsToAssignItemToNonExistentShoppingList4);
+        
+        // Act
+        var applyPatchAssigningItemToNonExistentList =
+            async () => await _service.PatchItemProperties(1, jasonPatchToAssignItemToNonExistentList4);
 
-
-
-
+        // Assert
+        await Assert.ThrowsAsync<ForeignKeyDoesNotExistException>(applyPatchAssigningItemToNonExistentList);
+    }
+    
 }

@@ -12,7 +12,12 @@ public class ShoppingContext : DbContext
     {
         modelBuilder.Seed();
     }
-    
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        optionsBuilder.UseSqlite(@"Data Source=/Users/Alistair.Taylor/Documents/SQLiteDbs/ShoppingLists.db");
+    }
+
     public DbSet<ShoppingItem> Items { get; set; }
     public DbSet<ShoppingList> Lists { get; set; }
 }

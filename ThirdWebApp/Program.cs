@@ -11,7 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddDbContext<ShoppingContext>(options =>
     {
-        options.UseInMemoryDatabase("Shopping Lists");
+        options.UseSqlite(@"Data Source=/Users/Alistair.Taylor/Documents/SQLiteDbs/ShoppingLists.db");
     })
     .AddScoped<ItemService>() // this importantly needs to be Scoped, not Singleton, because then it will capture the DBCOntext (I can try screwing this up to check the error/warning log)
     .AddControllers()
